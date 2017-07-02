@@ -72,7 +72,7 @@ Add the following functionality.
     c) Start the idle process to use the rest of the time slice.
 */
 
-#define NUM_SECONDS 3
+#define NUM_SECONDS 20
 
 // make sure the asserts work
 #undef NDEBUG
@@ -211,8 +211,55 @@ struct sigaction *create_handler (int signum, void (*handler)(int))
 }
 
 PCB* choose_process ()
-{
-    return idle;
+{   
+    PCB* choosen_process;
+    printf("In choose_process: running process");
+    cout << running;
+    //Updating current running PCB for interrupts, switches, and state.
+    int currentInterrupts = running->interrupts;
+    int currentSwitches = running->switches;
+    currentInterrupts++;
+    currentSwitches++;
+
+    running->interrupts = currentInterrupts;
+    running->switches = currentSwitches;
+    running->state = READY;
+
+    //Check if there are any new processes
+    if(new_list.size() > 0) {
+        // Used http://www.cplusplus.com/reference/list/list/front/ 
+        // and http://www.cplusplus.com/reference/list/list/pop_front/
+        printf("Taking a process off new process and adding it to process.\n");
+        int newProcessPID;
+        PCB* newProcess = new_list.front();
+        cout <<newProcess;
+        const char *name = newProcess -> name;
+        if((newProcessPID = fork()) == 0) {
+            int excelError = execl(name, name, NULL);
+            if(excelError < 0) {
+                perror("Error occured during excel of new process");
+            }
+        }
+
+        newProcess -> pid = newProcessPID;
+        newProcess -> state = RUNNING;
+        newProcess -> started = sys_time;
+        choosen_process = newProcess;
+        processes.push_back(newProcess);
+        new_list.pop_front();
+
+        printf("New Process List\n");
+        cout << new_list;
+
+        printf("Process List\n");
+        cout << processes;
+
+    } else { //If no new processes round robin READY processes
+
+    }
+    choosen_process = running;
+
+    return choosen_process;
 }
 
 void scheduler (int signum)
@@ -331,6 +378,21 @@ int main (int argc, char **argv)
 {
     int pid = getpid();
     dprintt ("main", pid);
+
+    // Used http://www.cplusplus.com/reference/list/list/push_back/ 
+    // as reference to adding to a list
+    if(argc > 1) {
+        
+        for(int i = 1; i < argc; i++) {
+            PCB* process = new (PCB);
+            process-> state = NEW;
+            process->name = argv[i];
+            process->ppid = 0;
+            process->interrupts = 0;
+            process-> switches = 0;
+            new_list.push_back(process);
+        }
+    } 
 
     sys_time = 0;
 
