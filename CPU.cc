@@ -212,9 +212,7 @@ struct sigaction *create_handler (int signum, void (*handler)(int))
 
 PCB* choose_process ()
 {   
-    PCB* choosen_process;
-    printf("In choose_process: running process");
-    cout << running;
+    PCB* choosen_process = NULL;
     //Updating current running PCB for interrupts, switches, and state.
     int currentInterrupts = running->interrupts;
     int currentSwitches = running->switches;
@@ -229,10 +227,8 @@ PCB* choose_process ()
     if(new_list.size() > 0) {
         // Used http://www.cplusplus.com/reference/list/list/front/ 
         // and http://www.cplusplus.com/reference/list/list/pop_front/
-        printf("Taking a process off new process and adding it to process.\n");
         int newProcessPID;
         PCB* newProcess = new_list.front();
-        cout <<newProcess;
         const char *name = newProcess -> name;
         if((newProcessPID = fork()) == 0) {
             int excelError = execl(name, name, NULL);
@@ -241,20 +237,34 @@ PCB* choose_process ()
             }
         }
 
-        newProcess -> pid = newProcessPID;
-        newProcess -> state = RUNNING;
-        newProcess -> started = sys_time;
+        newProcess->pid = newProcessPID;
+        newProcess->state = RUNNING;
+        newProcess->started = sys_time;
         choosen_process = newProcess;
         processes.push_back(newProcess);
         new_list.pop_front();
 
-        printf("New Process List\n");
-        cout << new_list;
-
-        printf("Process List\n");
-        cout << processes;
-
     } else { //If no new processes round robin READY processes
+        bool found = false;
+
+        while(!found) {
+            PCB* frontProcess = processes.front();
+            STATE frontState = frontProcess->state;
+            if(frontState == READY) {
+                found = true;
+                frontState = RUNNING;
+                choosen_process = frontProcess;
+            }
+
+            processes.push_back(frontProcess);
+            processes.pop_front();
+        }
+       
+        if(choosen_process == NULL) {
+            choosen_process = idle;
+            idle->state = RUNNING;
+        } 
+        //TODO: When we run it - do we need to fork/exel again?
 
     }
     choosen_process = running;
@@ -298,7 +308,34 @@ void process_done (int signum)
     }
     else
     {
+        PCB* pcbOfTerminatedProcess = NULL;
+        bool found = false;
+
+        while(!found) {
+            PCB* frontProcess = processes.front();
+            int pid = frontProcess->pid;
+            if(pid == cpid){
+                found = true;
+                frontProcess->state = TERMINATED;
+                pcbOfTerminatedProcess = frontProcess;
+            }
+            processes.push_back(frontProcess);
+            processes.pop_front();
+        }
+        
+
+        if(pcbOfTerminatedProcess != NULL) {
+            printf("terminated process information\n");
+            cout <<pcbOfTerminatedProcess;
+            int startTime = pcbOfTerminatedProcess->started;
+            int totalTime = sys_time - startTime;
+            printf("Total time process took: %d\n", totalTime);
+        }
+        
+
         dprint (WEXITSTATUS (status));
+        idle->state = RUNNING;
+        running = idle;
     }
 }
 
