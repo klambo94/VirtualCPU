@@ -264,7 +264,6 @@ PCB* choose_process ()
             choosen_process = idle;
             idle->state = RUNNING;
         } 
-        //TODO: When we run it - do we need to fork/exel again?
 
     }
     choosen_process = running;
